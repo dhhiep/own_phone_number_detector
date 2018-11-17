@@ -1,0 +1,13 @@
+<form action="">
+  <input type="text" name='phones'>
+  <input type="submit" name='submit'>
+</form>
+<br><br>
+
+<% if @results && @results.any? %>
+  <strong>Results:</strong> <br>
+  <% @results.each do |result| %>
+    <%= "Owner of number #{result[:phone]} is #{result[:name]}" %>
+    <br>
+  <% end %>
+<% end %>
