@@ -46,6 +46,7 @@ gem 'sendgrid-ruby'
 gem 'selenium-webdriver'
 gem 'chromedriver-helper'
 gem "capybara-webkit"
+gem 'dotenv-rails', groups: [:development, :test]
 
 group :development do
   # Access an interactive console on exception pages or by calling 'console' anywhere in the code.

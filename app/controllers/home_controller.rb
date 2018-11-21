@@ -3,7 +3,7 @@ require 'zalo'
 class HomeController < ApplicationController
   include SendGrid
 
-  def index    
+  def index
     @search_form = params[:search].presence || {}
     @results = []
     if @search_form.present?

@@ -1,16 +1,12 @@
-require 'capybara'
 require 'selenium-webdriver'
 require 'chromedriver-helper'
-require 'capybara-webkit'
-require 'pry'
 require 'rubygems'
-require 'capybara/dsl'
 require 'sendgrid-ruby'
 require 'base64'
 require 'fileutils'
+require 'dotenv/load'
 
 class Zalo
-  include Capybara::DSL
   include SendGrid
 
   @@driver = nil
@@ -58,7 +54,8 @@ class Zalo
 
     return @@driver if @@driver
 
-    @@driver = Selenium::WebDriver.for :chrome
+    capabilities = Selenium::WebDriver::Remote::Capabilities.chrome(chromeOptions: { args: %w(headless disable-gpu) } )
+    @@driver = Selenium::WebDriver.for :chrome, desired_capabilities: capabilities
     @@driver.navigate.to 'https://chat.zalo.me/'
     sleep(3)
 
@@ -71,7 +68,7 @@ class Zalo
     if qr_tab
       qr_tab.click
     else
-      puts 'Loged in. Using previous session'
+      puts 'Using previous user session'
       return
     end
 
@@ -79,9 +76,7 @@ class Zalo
     FileUtils.remove_dir(@@folder_path, true)
     FileUtils.mkdir_p(@@folder_path)
     
-    current_session.manage.window.resize_to(150, 600)
     capture_qr_code_and_send_email
-    current_session.manage.window.resize_to(1400, 700)
 
     until (current_session.find_element(id: 'inviteBtn') rescue nil)
       sleep(3)
@@ -107,8 +102,10 @@ class Zalo
     # Save screenshot QR code and send to email
     qr_name = "qr_code_#{Time.now.to_i}.png"
     file_path = File.join(@@folder_path, qr_name)
+    current_session.manage.window.resize_to(350, 600)
     current_session.save_screenshot(file_path)
-    email_response = send_email_qr_code(file_path).to_json
+    current_session.manage.window.resize_to(1400, 700)
+    send_email_qr_code(file_path).to_json
   end
 
   def self.prepare_zalo_search_from

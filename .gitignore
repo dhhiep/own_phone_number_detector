@@ -52,4 +52,6 @@ build-iPhoneSimulator/
 # Ignore master key for decrypting credentials and more.
 /config/master.key
 sendgrid.env
-lid/zalo_qr_codes/*
+lib/zalo_qr_codes/*
+.env
+log/*
