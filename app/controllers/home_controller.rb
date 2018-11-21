@@ -1,35 +1,28 @@
-require 'capybara'
-require 'selenium-webdriver'
-require 'chromedriver-helper'
-require 'capybara-webkit'
-require 'pry'
-require 'rubygems'
-require 'capybara/dsl'
+require 'zalo'
 
 class HomeController < ApplicationController
-  include Capybara::DSL
+  include SendGrid
 
-  def index
+  def index    
     @search_form = params[:search].presence || {}
+    @results = []
     if @search_form.present?
       @phones = @search_form[:phones].to_s.split(',').reject(&:blank?)
       if @phones.any?
-         @phones.each do |phone|
-          # Capybara.current_driver = :selenium
-          # Capybara.app_host = 'http://www.google.com'
-          driver = Selenium::WebDriver.for :chrome
-          driver.navigate.to 'https://chat.zalo.me/'
-
-          phone_field = driver.find_element(name: 'phone_num')
-          phone_field.send_keys "0785286828"
-          pass_field = driver.find_element(css: "input[placeholder='Mật khẩu']")
-          pass_field.send_keys "xxxx"
-
-          submit_button = driver.find_element(link: "Đăng nhập với mật khẩu")
-          submit_button.click
-         end
+        @phones.each do |phone|
+          phone = phone.strip
+          @results << Zalo.get_owner_info(phone)
+          @results.compact!
+        end
       end
     end
-    
+  end
+
+  def debug_mode
+    # current_session = Zalo.current_session
+    # search_field = current_session.find_element(css: '[data-translate-placeholder="STR_INPUT_PHONE_NUMBER"]')
+    # search_field.send_key('0933191170')
+    # current_session.find_element(css: '[data-translate-inner="STR_FIND_FRIEND"]').click  rescue nil
+    # binding.pry
   end
 end
