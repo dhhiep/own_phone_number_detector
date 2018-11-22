@@ -1,6 +1,7 @@
 require 'selenium-webdriver'
 require 'chromedriver-helper'
 require 'rubygems'
+require 'pry'
 require 'sendgrid-ruby'
 require 'base64'
 require 'fileutils'
@@ -10,6 +11,24 @@ class Zalo
   include SendGrid
 
   @@driver = nil
+
+  def self.current_session
+    if @@driver
+      puts "Using previous brower session"
+    else
+      puts "Create a new brower session"
+    end
+
+    return @@driver if @@driver
+
+    capabilities = Selenium::WebDriver::Remote::Capabilities.chrome(chromeOptions: { args: %w(headless no-sandbox start-maximized disable-infobars disable-extensions) } )
+    # @@driver = Selenium::WebDriver.for :remote, url: "http://127.0.0.1:4444/wd/hub", desired_capabilities: capabilities
+    @@driver = Selenium::WebDriver.for :chrome, desired_capabilities: capabilities # for destop
+    @@driver.navigate.to 'https://chat.zalo.me/'
+    sleep(3)
+
+    @@driver
+  end
 
   def self.get_owner_info(phone)
     puts "\n= = = = Fetching data of #{phone} = = = =\n"
@@ -43,23 +62,6 @@ class Zalo
 
     puts "\n= = = = Fetched data of #{phone} - #{owner_info} = = = =\n"
     owner_info
-  end
-
-  def self.current_session
-    if @@driver
-      puts "Using previous brower session"
-    else
-      puts "Create a new brower session"
-    end
-
-    return @@driver if @@driver
-
-    capabilities = Selenium::WebDriver::Remote::Capabilities.chrome(chromeOptions: { args: %w(headless disable-gpu) } )
-    @@driver = Selenium::WebDriver.for :chrome, desired_capabilities: capabilities
-    @@driver.navigate.to 'https://chat.zalo.me/'
-    sleep(3)
-
-    @@driver
   end
 
   def self.login
