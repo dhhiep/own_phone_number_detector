@@ -18,6 +18,13 @@ class HomeController < ApplicationController
     end
   end
 
+  # http://0.0.0.0:3000/01285286828/phone-finder.json
+  def phone_finder
+    if params[:id]
+      render json: Zalo.get_owner_info(params[:id])
+    end
+  end
+
   def debug_mode
     # current_session = Zalo.current_session
     # search_field = current_session.find_element(css: '[data-translate-placeholder="STR_INPUT_PHONE_NUMBER"]')

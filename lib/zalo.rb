@@ -15,32 +15,64 @@ class Zalo
   @@redis = nil
 
   def self.current_session
-    if @@driver
-      puts "Using previous brower session"
-    else
-      puts "Create a new brower session"
-    end
-
     return @@driver if @@driver
 
-    capabilities = Selenium::WebDriver::Remote::Capabilities.chrome(chromeOptions: { args: %w(headless no-sandbox start-maximized disable-infobars disable-extensions) } )
-    # @@driver = Selenium::WebDriver.for :remote, url: "http://127.0.0.1:4444/wd/hub", desired_capabilities: capabilities
-    @@driver = Selenium::WebDriver.for :chrome, desired_capabilities: capabilities # for destop
+    @@driver = create_selenium_session
     @@driver.navigate.to 'https://chat.zalo.me/'
-    sleep(3)
-
+    sleep(1)
     @@driver
   end
 
+  def self.clear_all_cookies
+    redis_store('previous_cookies', nil)
+  end
+
+  def self.store_all_cookies
+    redis_store('previous_cookies', current_session.manage.all_cookies.to_json)
+  end
+
+  def self.restore_all_cookies
+    return false unless redis_load('previous_cookies').is_a?(Array)
+    redis_load('previous_cookies').each do |cookie|
+      cookie[:expires] = Time.parse(cookie[:expires]) if cookie[:expires]
+      current_session.manage.add_cookie(cookie)
+    end
+  end
+
+  def self.create_selenium_session
+    puts "Creating browser for #{ENV['SELENIUM_TYPE'] || 'destop'}"
+
+    default_capabilities = {
+      args: %w(headless start-maximized disable-infobars disable-extensions)
+      # args: %w(start-maximized disable-infobars disable-extensions)
+    }
+    
+    default_capabilities.merge!(binary: ENV['GOOGLE_CHROME_SHIM']) if ENV.fetch('GOOGLE_CHROME_SHIM', nil)
+
+    capabilities = Selenium::WebDriver::Remote::Capabilities.chrome(chromeOptions: default_capabilities)
+
+    case ENV['SELENIUM_TYPE']
+    when 'heroku'
+      Selenium::WebDriver.for :chrome, desired_capabilities: capabilities # for heroku 
+    when 'ubuntu'
+      Selenium::WebDriver.for :remote, url: "http://127.0.0.1:9515", desired_capabilities: capabilities
+    else
+      Selenium::WebDriver.for :chrome, desired_capabilities: capabilities # for destop
+    end 
+  end
+
   def self.get_owner_info(phone)
-    puts "\n= = = = Fetching data of #{phone} = = = =\n"
-    data = load(phone)
+    data = redis_load(phone)
 
     if data
       puts "Load data from cache instead of from Zalo server for #{phone}"
       return data
     end
 
+    @@folder_path = File.join(File.dirname(__FILE__), "zalo_qr_codes")
+    FileUtils.remove_dir(@@folder_path, true)
+    FileUtils.mkdir_p(@@folder_path)
+    
     prepare_zalo_search_from
 
     clear_search_fields
@@ -50,7 +82,7 @@ class Zalo
 
     # Click btn find
     current_session.find_element(css: '[data-translate-inner="STR_FIND_FRIEND"]').click  rescue nil
-    sleep(1)
+    sleep(0.5)
 
     username = current_session.find_element(class: 'usname').text rescue nil
 
@@ -63,34 +95,31 @@ class Zalo
         avatar = avatar.css_value('background-image').scan(/https:\/\/.*\"/).first.gsub("\"", '') rescue ''
         
         clear_search_fields
-        store phone, { avatar: avatar, phone: phone, name: username, gender: gender }
+        redis_store(phone, { avatar: avatar, phone: phone, name: username, gender: gender}.to_json)
       else
-        puts 'Not Found'
-        JSON.parse({ 'avatar': 'https://www.gravatar.com/avatar/xxx.jpg', 'phone': phone, 'name': 'Unknown', 'gender': 'Unknown' }.to_json)
+        redis_store(phone, { avatar: 'https://www.gravatar.com/avatar/xxx.jpg', phone: phone, name: 'Unknown', gender: 'Unknown' }.to_json)
       end
 
-    puts "\n= = = = Fetched data of #{phone} - #{owner_info} = = = =\n"
     owner_info
   end
 
   def self.login
-    # Change to QR tab
-    qr_tab = current_session.find_element(css: '.body-container > div > .tabs > ul > li:last-child a') rescue nil
-    if qr_tab
-      qr_tab.click
-    else
-      puts 'Using previous user session'
-      return
+    3.times do |i|
+      restore_all_cookies
+      current_session.navigate.to 'https://chat.zalo.me/'
+      sleep(0.5)
+      invite_btn = current_session.find_element(id: 'inviteBtn') rescue nil
+      return invite_btn.click if invite_btn # Previous cookies worked 
     end
 
-    @@folder_path = File.join(File.dirname(__FILE__), "zalo_qr_codes")
-    FileUtils.remove_dir(@@folder_path, true)
-    FileUtils.mkdir_p(@@folder_path)
-    
+    # Change to QR tab
+    current_session.find_element(css: '.body-container > div > .tabs > ul > li:last-child a').click rescue nil
+
     capture_qr_code_and_send_email
 
     until (current_session.find_element(id: 'inviteBtn') rescue nil)
-      sleep(3)
+      puts 'Waiting for account loged in to click button Find friends'
+      sleep(0.5)
       qr_expired = current_session.find_element(css: '.qrcode-expired') rescue nil
       if qr_expired && qr_expired.css_value('display') == 'block'
         qr_expired.click if qr_expired
@@ -98,6 +127,8 @@ class Zalo
         puts 'Reload QR Code'
       end
     end
+
+    store_all_cookies
   end
 
   def self.clear_search_fields
@@ -114,6 +145,7 @@ class Zalo
     qr_name = "qr_code_#{Time.now.to_i}.png"
     file_path = File.join(@@folder_path, qr_name)
     current_session.manage.window.resize_to(350, 600)
+    sleep(0.5)
     current_session.save_screenshot(file_path)
     current_session.manage.window.resize_to(1400, 700)
     send_email_qr_code(file_path).to_json
@@ -121,9 +153,11 @@ class Zalo
 
   def self.prepare_zalo_search_from
     login # login follow
+
     until (current_session.find_element(css: '.modal.animated.fadeIn.appear') rescue nil)
+      puts 'Waiting for modal search contact display'
       current_session.find_element(id: 'inviteBtn').click rescue nil
-      sleep(3)
+      sleep(0.5)
     end
   end
 
@@ -152,20 +186,20 @@ class Zalo
     @@redis ||= Redis.new(url: ENV['REDIS_URL']) 
   end
 
-  def self.store(phone, data)
+  def self.redis_store(phone, data)
     puts "Storing data for #{phone} ... OK"
     data = data.to_json if data.is_a?(Hash)
     redis_connection.set(phone, data)
-    load(phone)
+    redis_load(phone)
   end
 
-  def self.load(phone)
+  def self.redis_load(phone)
     print "Loading data for #{phone} ... "
     data = redis_connection.get(phone)
     
     if data
       print "OK\n"
-      JSON.parse(data)
+      JSON.parse(data, symbolize_names: true) rescue nil
     else
       print "Fail (maybe key not existed)\n"
     end
