@@ -1,11 +1,11 @@
 require 'selenium-webdriver'
 require 'chromedriver-helper'
 require 'rubygems'
-require 'pry'
+# require 'pry'
 require 'sendgrid-ruby'
 require 'base64'
 require 'fileutils'
-require 'dotenv/load'
+# require 'dotenv/load'
 require 'redis'
 
 class Zalo
