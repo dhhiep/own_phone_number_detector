@@ -6,11 +6,13 @@ require 'sendgrid-ruby'
 require 'base64'
 require 'fileutils'
 require 'dotenv/load'
+require 'redis'
 
 class Zalo
   include SendGrid
 
   @@driver = nil
+  @@redis = nil
 
   def self.current_session
     if @@driver
@@ -32,6 +34,13 @@ class Zalo
 
   def self.get_owner_info(phone)
     puts "\n= = = = Fetching data of #{phone} = = = =\n"
+    data = load(phone)
+
+    if data
+      puts "Load data from cache instead of from Zalo server for #{phone}"
+      return data
+    end
+
     prepare_zalo_search_from
 
     clear_search_fields
@@ -54,10 +63,10 @@ class Zalo
         avatar = avatar.css_value('background-image').scan(/https:\/\/.*\"/).first.gsub("\"", '') rescue ''
         
         clear_search_fields
-        { avatar: avatar, phone: phone, name: username, gender: gender }
+        store phone, { avatar: avatar, phone: phone, name: username, gender: gender }
       else
         puts 'Not Found'
-        { avatar: 'https://www.gravatar.com/avatar/xxx.jpg', phone: phone, name: 'Unknown', gender: 'Unknown' }
+        JSON.parse({ 'avatar': 'https://www.gravatar.com/avatar/xxx.jpg', 'phone': phone, 'name': 'Unknown', 'gender': 'Unknown' }.to_json)
       end
 
     puts "\n= = = = Fetched data of #{phone} - #{owner_info} = = = =\n"
@@ -137,5 +146,28 @@ class Zalo
     sg = SendGrid::API.new(api_key: ENV['SENDGRID_API_KEY'])
     response = sg.client.mail._('send').post(request_body: mail.to_json)
     response
+  end
+
+  def self.redis_connection
+    @@redis ||= Redis.new(url: ENV['REDIS_URL']) 
+  end
+
+  def self.store(phone, data)
+    puts "Storing data for #{phone} ... OK"
+    data = data.to_json if data.is_a?(Hash)
+    redis_connection.set(phone, data)
+    load(phone)
+  end
+
+  def self.load(phone)
+    print "Loading data for #{phone} ... "
+    data = redis_connection.get(phone)
+    
+    if data
+      print "OK\n"
+      JSON.parse(data)
+    else
+      print "Fail (maybe key not existed)\n"
+    end
   end
 end

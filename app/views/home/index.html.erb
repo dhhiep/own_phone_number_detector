@@ -23,10 +23,10 @@
     <tbody>
       <% @results.each do |result| %>
         <tr>
-          <td><img src="<%= result[:avatar] %>" alt=""></td>
-          <td><%= result[:phone] %></td>
-          <td><%= result[:name] %></td>
-          <td><%= result[:gender] %></td>
+          <td><img src="<%= result['avatar'] %>" alt=""></td>
+          <td><%= result['phone'] %></td>
+          <td><%= result['name'] %></td>
+          <td><%= result['gender'] %></td>
         </tr>
       <% end %>
     </tbody>
