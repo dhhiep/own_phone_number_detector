@@ -45,7 +45,6 @@ end
 gem 'sendgrid-ruby'
 gem 'selenium-webdriver'
 gem 'chromedriver-helper'
-gem "capybara-webkit"
 gem 'dotenv-rails', groups: [:development, :test]
 gem 'redis'
 
