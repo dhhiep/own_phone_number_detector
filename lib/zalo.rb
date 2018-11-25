@@ -35,7 +35,7 @@ class Zalo
     return false unless redis_load('previous_cookies').is_a?(Array)
     redis_load('previous_cookies').each do |cookie|
       cookie[:expires] = Time.parse(cookie[:expires]) if cookie[:expires]
-      current_session.manage.add_cookie(cookie)
+      current_session.manage.add_cookie(cookie) rescue nil
     end
   end
 
@@ -43,7 +43,7 @@ class Zalo
     puts "Creating browser for #{ENV['SELENIUM_TYPE'] || 'destop'}"
 
     default_capabilities = {
-      args: %w(headless start-maximized disable-infobars disable-extensions)
+      args: %w(start-maximized disable-infobars disable-extensions)
       # args: %w(start-maximized disable-infobars disable-extensions)
     }
     
@@ -90,14 +90,19 @@ class Zalo
       if username
         gender = current_session.find_element(css: '[data-translate-inner="STR_GENDER_MALE"]') rescue nil
         gender = gender ? 'Nam' : 'Nữ'
+
         
         avatar = current_session.find_element(css: '.avatar.avatar--profile.clickable .avatar-img.outline') rescue nil
         avatar = avatar.css_value('background-image').scan(/https:\/\/.*\"/).first.gsub("\"", '') rescue ''
-        
+
+        birth_day = current_session.find_element(css: '[data-translate-inner="STR_PROFILE_LABEL_BIRTHDAY"]') rescue nil
+        birth_day = birth_day.find_element(xpath: '..').find_element(css: 'span:last-child').text rescue nil
+
         clear_search_fields
-        redis_store(phone, { avatar: avatar, phone: phone, name: username, gender: gender}.to_json)
+        
+        redis_store(phone, { avatar: avatar, phone: phone, name: username, gender: gender, birth_day: birth_day}.to_json)
       else
-        redis_store(phone, { avatar: 'https://www.gravatar.com/avatar/xxx.jpg', phone: phone, name: 'Unknown', gender: 'Unknown' }.to_json)
+        redis_store(phone, { avatar: 'https://www.gravatar.com/avatar/xxx.jpg', phone: phone, name: 'Unknown', gender: 'Unknown', birth_day: 'Unknown'}.to_json)
       end
 
     owner_info
