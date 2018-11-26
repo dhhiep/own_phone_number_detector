@@ -35,7 +35,7 @@ class Zalo
     return false unless redis_load('previous_cookies').is_a?(Array)
     redis_load('previous_cookies').each do |cookie|
       cookie[:expires] = Time.parse(cookie[:expires]) if cookie[:expires]
-      current_session.manage.add_cookie(cookie) rescue nil
+      current_session.manage.add_cookie(cookie)
     end
   end
 
@@ -110,8 +110,17 @@ class Zalo
 
   def self.login
     3.times do |i|
-      restore_all_cookies
-      current_session.navigate.to 'https://chat.zalo.me/'
+      begin
+        restore_all_cookies
+        current_session.navigate.to 'https://chat.zalo.me/'
+      rescue Exception => e
+        @@driver = nil
+        current_session
+        sleep(0.5)
+        restore_all_cookies
+        current_session.navigate.to 'https://chat.zalo.me/'
+      end
+
       sleep(0.5)
       invite_btn = current_session.find_element(id: 'inviteBtn') rescue nil
       return invite_btn.click if invite_btn # Previous cookies worked 
